@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http
+          http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+          http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+  <!-- ============================================================
+       GET /api/orders/{orderId}
+       Pedido em memória (demo) enriquecido com o PaymentIntent real
+       do Stripe (test mode).
+       ============================================================ -->
+  <flow name="order-support-get-order-flow"
+    doc:name="Get Order Flow"
+    doc:description="Handles GET /api/orders/{orderId}: looks up the demo order and enriches it with the live Stripe payment">
+    <http:listener config-ref="api-listener-config" path="/api/orders/{orderId}" allowedMethods="GET"
+      doc:name="GET /api/orders/{orderId}"
+      doc:description="Receives inbound HTTP GET requests for a single order by orderId path parameter">
+      <http:response statusCode="#[vars.httpStatus default 200]"/>
+      <http:error-response statusCode="#[vars.httpStatus default 500]">
+        <http:body>#[payload]</http:body>
+      </http:error-response>
+    </http:listener>
+
+    <set-variable variableName="orderId" value="#[attributes.uriParams.orderId]"
+      doc:name="Set orderId"
+      doc:description="Extracts the orderId path parameter into a flow variable"/>
+
+    <logger level="INFO" category="com.techwave.orders.api"
+      doc:name="Flow start"
+      doc:description="Logs START tracePoint with the requested orderId"
+      message="#[output application/json --- {message: 'Order lookup started', tracePoint: 'START'} ++ ({ orderId: vars.orderId })]"/>
+
+    <!-- Catálogo de pedidos da demo (em memória) -->
+    <ee:transform doc:name="Lookup order"
+      doc:description="Looks up the order by orderId in the in-memory demo catalogue">
+      <ee:message>
+        <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var orders = {
+  "TW-1001": { orderId: "TW-1001", customer: { name: "Ana Souza",  email: "ana.souza@example.com" },
+               items: [{ sku: "TW-KB-75",  description: "Teclado mecanico 75%", qty: 1, unitPrice: 89.90 }],
+               status: "DELIVERED", paymentIntentId: "pi_REPLACE_WITH_YOUR_TEST_PAYMENT_INTENT" },
+  "TW-1002": { orderId: "TW-1002", customer: { name: "Bruno Lima", email: "bruno.lima@example.com" },
+               items: [{ sku: "TW-MN-27",  description: "Monitor 27in 144Hz",   qty: 1, unitPrice: 379.00 }],
+               status: "SHIPPED",   paymentIntentId: "pi_REPLACE_WITH_YOUR_TEST_PAYMENT_INTENT" },
+  "TW-1003": { orderId: "TW-1003", customer: { name: "Carla Dias", email: "carla.dias@example.com" },
+               items: [{ sku: "TW-HS-X1",  description: "Headset USB-C",        qty: 2, unitPrice: 59.50 }],
+               status: "PROCESSING", paymentIntentId: "pi_REPLACE_WITH_YOUR_TEST_PAYMENT_INTENT" }
+}
+---
+orders[vars.orderId]]]></ee:set-payload>
+      </ee:message>
+    </ee:transform>
+
+    <choice doc:name="Order found?"
+      doc:description="Routes to a 404 response when the order is unknown, otherwise enriches it with Stripe">
+      <when expression="#[payload == null]"
+        doc:name="Not found"
+        doc:description="Handles the case where no order matches the requested orderId">
+        <set-variable variableName="httpStatus" value="#[404]"
+          doc:name="Set 404"
+          doc:description="Sets the HTTP status variable to 404 for the not-found response"/>
+        <ee:transform doc:name="Not found response"
+          doc:description="Builds the ORDER_NOT_FOUND JSON error body for the unknown orderId">
+          <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ error: "ORDER_NOT_FOUND", message: "Order " ++ vars.orderId ++ " not found" }]]></ee:set-payload>
+          </ee:message>
+        </ee:transform>
+        <logger level="WARN" category="com.techwave.orders.api"
+          doc:name="Order not found"
+          doc:description="Logs a FLOW-level warning that the requested order was not found"
+          message="#[output application/json --- {message: 'Order not found: ' ++ vars.orderId, tracePoint: 'FLOW'}]"/>
+      </when>
+      <otherwise doc:name="Order found"
+        doc:description="Enriches the found order with its live Stripe payment status">
+        <set-variable variableName="order" value="#[payload]"
+          doc:name="Set order"
+          doc:description="Stores the matched order in a flow variable for downstream enrichment"/>
+
+        <logger level="INFO" category="com.techwave.orders.api"
+          doc:name="Before Stripe call - INFO"
+          doc:description="Logs BEFORE_REQUEST as the flow is about to fetch the Stripe PaymentIntent"
+          message="#[output application/json --- {message: 'Fetching payment from Stripe for order ' ++ vars.orderId, tracePoint: 'BEFORE_REQUEST'}]"/>
+        <logger level="DEBUG" category="com.techwave.orders.api"
+          doc:name="Before Stripe call - DEBUG"
+          doc:description="Logs the PaymentIntent id being requested from Stripe (DEBUG)"
+          message="#[output application/json --- {message: 'Stripe PaymentIntent request', tracePoint: 'BEFORE_REQUEST'} ++ ({ paymentIntentId: vars.order.paymentIntentId })]"/>
+
+        <http:request config-ref="stripe-request-config" method="GET"
+          path="#['/payment_intents/' ++ vars.order.paymentIntentId]" target="stripePayment"
+          doc:name="Get Stripe payment"
+          doc:description="Fetches the PaymentIntent from Stripe and stores it in the stripePayment variable"/>
+
+        <logger level="INFO" category="com.techwave.orders.api"
+          doc:name="After Stripe call - INFO"
+          doc:description="Logs AFTER_REQUEST once Stripe has returned the PaymentIntent"
+          message="#[output application/json --- {message: 'Stripe responded for order ' ++ vars.orderId, tracePoint: 'AFTER_REQUEST'}]"/>
+        <logger level="DEBUG" category="com.techwave.orders.api"
+          doc:name="After Stripe call - DEBUG"
+          doc:description="Logs the Stripe payment status and amount returned for the order (DEBUG)"
+          message="#[output application/json --- {message: 'Stripe PaymentIntent response', tracePoint: 'AFTER_REQUEST'} ++ ({
+            paymentStatus: vars.stripePayment.status default 'unknown',
+            amount: vars.stripePayment.amount default 0
+          })]"/>
+
+        <ee:transform doc:name="Build order response"
+          doc:description="Combines the order and Stripe payment into the final JSON response with refund status">
+          <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  orderId: vars.order.orderId,
+  status: vars.order.status,
+  customer: vars.order.customer,
+  items: vars.order.items,
+  payment: {
+    paymentIntentId: vars.order.paymentIntentId,
+    status: vars.stripePayment.status,
+    amount: (vars.stripePayment.amount default 0) / 100,
+    currency: upper(vars.stripePayment.currency default "usd"),
+    refunded: ((vars.stripePayment.amount_received default 0) > 0)
+      and ((vars.stripePayment.status default "") == "succeeded")
+      and ((vars.stripePayment."charges".data[0].refunded default false) == true)
+  }
+}]]></ee:set-payload>
+          </ee:message>
+        </ee:transform>
+      </otherwise>
+    </choice>
+
+    <logger level="INFO" category="com.techwave.orders.api"
+      doc:name="Flow end"
+      doc:description="Logs END tracePoint with the orderId and resolved HTTP status"
+      message="#[output application/json --- {message: 'Order lookup completed', tracePoint: 'END'} ++ ({ orderId: vars.orderId, httpStatus: vars.httpStatus default 200 })]"/>
+
+    <error-handler>
+      <on-error-continue type="ANY" logException="false">
+        <logger level="ERROR" category="com.techwave.orders.api"
+          doc:name="Log API error"
+          doc:description="Logs EXCEPTION tracePoint with the error type and description on any failure"
+          message="#[output application/json --- {message: 'Order lookup failed: ' ++ error.description, tracePoint: 'EXCEPTION'} ++ ({
+            orderId: vars.orderId default 'unknown',
+            errorType: error.errorType.identifier default 'UNKNOWN',
+            errorDescription: error.description
+          })]"/>
+        <set-variable variableName="httpStatus" value="#[500]"
+          doc:name="Set 500"
+          doc:description="Sets the HTTP status variable to 500 for the error response"/>
+        <ee:transform doc:name="Error response"
+          doc:description="Builds the INTERNAL_ERROR JSON body returned to the caller on failure">
+          <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ error: "INTERNAL_ERROR", message: error.description }]]></ee:set-payload>
+          </ee:message>
+        </ee:transform>
+      </on-error-continue>
+    </error-handler>
+  </flow>
+
+  <!-- GET /api/health — usado pelo GW e pela demo de políticas -->
+  <flow name="order-support-health-flow"
+    doc:name="Health Flow"
+    doc:description="Handles GET /api/health used by the gateway and the policy demo for liveness checks">
+    <http:listener config-ref="api-listener-config" path="/api/health" allowedMethods="GET"
+      doc:name="GET /api/health"
+      doc:description="Receives inbound HTTP GET health-check requests on /api/health"/>
+    <ee:transform doc:name="Health response"
+      doc:description="Builds the UP status JSON payload with app name and current timestamp">
+      <ee:message>
+        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ status: "UP", app: "demo-order-support-api", timestamp: now() }]]></ee:set-payload>
+      </ee:message>
+    </ee:transform>
+  </flow>
+
+</mule>

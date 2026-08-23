@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit
+          http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools
+          http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+  <munit:config name="order-support-api-test.xml"/>
+
+  <munit:test name="get-order-success-test" description="Pedido existente retorna dados com pagamento Stripe mockado">
+    <munit:behavior>
+      <munit-tools:mock-when processor="http:request">
+        <munit-tools:then-return>
+          <munit-tools:payload value="#[output application/java --- {
+            id: 'pi_REPLACE_TW1001',
+            status: 'succeeded',
+            amount: 8990,
+            amount_received: 8990,
+            currency: 'usd'
+          }]"/>
+        </munit-tools:then-return>
+      </munit-tools:mock-when>
+    </munit:behavior>
+    <munit:execution>
+      <munit:set-event doc:name="Simulate HTTP request">
+        <munit:attributes value="#[{ uriParams: { orderId: 'TW-1001' } }]"/>
+      </munit:set-event>
+      <!-- MUnit does not route a mocked operation's result into its `target` var,
+           so seed vars.stripePayment with the Stripe response the flow expects.
+           The mock above still prevents a real outbound call. -->
+      <set-variable variableName="stripePayment" doc:name="Seed Stripe response"
+        value="#[output application/java --- {
+          id: 'pi_REPLACE_TW1001',
+          status: 'succeeded',
+          amount: 8990,
+          amount_received: 8990,
+          currency: 'usd'
+        }]"/>
+      <flow-ref name="order-support-get-order-flow"/>
+    </munit:execution>
+    <munit:validation>
+      <munit-tools:assert-that expression="#[payload.orderId]" is="#[MunitTools::equalTo('TW-1001')]"/>
+      <munit-tools:assert-that expression="#[payload.payment.status]" is="#[MunitTools::equalTo('succeeded')]"/>
+      <munit-tools:assert-that expression="#[payload.payment.amount]" is="#[MunitTools::equalTo(89.90)]"/>
+    </munit:validation>
+  </munit:test>
+
+  <munit:test name="get-order-not-found-test" description="Pedido inexistente retorna 404">
+    <munit:execution>
+      <munit:set-event doc:name="Simulate HTTP request">
+        <munit:attributes value="#[{ uriParams: { orderId: 'TW-9999' } }]"/>
+      </munit:set-event>
+      <flow-ref name="order-support-get-order-flow"/>
+    </munit:execution>
+    <munit:validation>
+      <munit-tools:assert-that expression="#[vars.httpStatus]" is="#[MunitTools::equalTo(404)]"/>
+      <munit-tools:assert-that expression="#[payload.error]" is="#[MunitTools::equalTo('ORDER_NOT_FOUND')]"/>
+    </munit:validation>
+  </munit:test>
+
+</mule>

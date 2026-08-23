@@ -1,0 +1,6 @@
+# Segredos CIFRADOS (Secure Configuration Properties module) — gerado por encrypt-secrets.sh.
+# NUNCA commitar valores em texto puro. Apenas o resultado cifrado entre ![ ... ].
+# Cifrado com AES/CBC; use a MESMA chave em -Dencryption.key no deploy.
+stripe:
+  api:
+    key: "CHANGE-ME"

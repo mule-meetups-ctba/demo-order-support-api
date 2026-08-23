@@ -1,0 +1,20 @@
+{
+  "minMuleVersion": "4.11.0",
+  "javaSpecificationVersions": [
+    "17"
+  ],
+  "configs": [
+    "global-config.xml",
+    "order-support-api.xml"
+  ],
+  "secureProperties": [
+    "stripe.api.key"
+  ],
+  "classLoaderModelLoaderDescriptor": {
+    "id": "mule",
+    "attributes": {
+      "exportedPackages": [],
+      "exportedResources": []
+    }
+  }
+}

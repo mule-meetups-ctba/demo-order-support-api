@@ -1,0 +1,37 @@
+# Build
+target/
+
+# Mule tooling / IDE
+.mule/
+.tooling-project/
+.vscode/
+.metadata/
+.classpath
+.project
+.settings/
+
+# DataWeave playground (gerado pelo Anypoint Code Builder)
+**/embedded-dw_*/
+**/Playground/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ---------------------------------------------------------------------------
+# SEGREDOS — nunca versionar
+# ---------------------------------------------------------------------------
+# A chave de criptografia entra em runtime via -Dencryption.key (ou como
+# propriedade segura no Runtime Manager). NUNCA em arquivo.
+*.key
+.env
+settings.xml
+
+# Arquivos de trabalho com segredos em texto puro
+encrypt-password.sh
+ProductsIdentifiers.md
+sample_data.json
+secure-config-local*.yaml
+
+# NOTA: src/main/resources/secure-config-*.yaml É versionado de propósito —
+# ele contém apenas valores CIFRADOS (entre ![ ... ]). Ver SECRETS.md.

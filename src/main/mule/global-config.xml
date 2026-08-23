@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http
+          http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/secure-properties
+          http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+
+  <configuration-properties file="config-${config.environment}.yaml"
+    doc:name="Environment properties"
+    doc:description="Loads config-${config.environment}.yaml so the app reads per-environment host, port and basePath values"/>
+
+  <secure-properties:config name="secure-config"
+    file="secure-config-${config.environment}.yaml"
+    key="${encryption.key}"
+    doc:name="Secure Properties"
+    doc:description="Decrypts the secrets in secure-config-${config.environment}.yaml using the runtime encryption key">
+    <secure-properties:encrypt algorithm="AES" mode="CBC"/>
+  </secure-properties:config>
+
+
+  <http:listener-config name="api-listener-config"
+    doc:name="API HTTP Listener"
+    doc:description="Inbound HTTP listener for the Order Support API, behind the ingress Omni Gateway">
+    <http:listener-connection host="0.0.0.0" port="${config.http.port}"/>
+  </http:listener-config>
+
+  <http:request-config name="stripe-request-config" basePath="${config.stripe.basePath}"
+    doc:name="Stripe API"
+    doc:description="Outbound HTTPS client for the Stripe API (test mode), authenticated with the secure Stripe API key">
+    <http:request-connection host="${config.stripe.host}" protocol="HTTPS" port="443"/>
+    <http:default-headers>
+      <http:default-header key="Authorization" value="Bearer ${secure::stripe.api.key}"/>
+    </http:default-headers>
+  </http:request-config>
+
+</mule>

@@ -1,0 +1,7 @@
+config:
+  environment: "dev"
+  http:
+    port: "8081"
+  stripe:
+    host: "api.stripe.com"
+    basePath: "/v1"
