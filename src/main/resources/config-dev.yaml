@@ -5,3 +5,6 @@ config:
   stripe:
     host: "api.stripe.com"
     basePath: "/v1"
+    # Versao em que `latest_charge` passou a existir no PaymentIntent (e o campo
+    # `charges` foi removido). Fixar evita que a Stripe mude o shape sob a demo.
+    apiVersion: "2022-08-01"

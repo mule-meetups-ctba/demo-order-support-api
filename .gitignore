@@ -35,3 +35,8 @@ secure-config-local*.yaml
 
 # NOTA: src/main/resources/secure-config-*.yaml É versionado de propósito —
 # ele contém apenas valores CIFRADOS (entre ![ ... ]). Ver SECRETS.md.
+
+# Secure Properties Tool (binário; fica em repos/, fora dos repositórios)
+secure-properties-tool*.jar
+
+.tooling-project

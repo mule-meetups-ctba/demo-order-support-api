@@ -35,8 +35,13 @@
     doc:name="Stripe API"
     doc:description="Outbound HTTPS client for the Stripe API (test mode), authenticated with the secure Stripe API key">
     <http:request-connection host="${config.stripe.host}" protocol="HTTPS" port="443"/>
+    <!-- Stripe-Version fixa a versao da API. Sem ela a conta usa a versao
+         "current", que a Stripe move sozinha — e foi assim que o campo `charges`
+         do PaymentIntent sumiu debaixo desta demo. Subir de versao passa a ser
+         uma decisao explicita, testavel, em vez de um efeito colateral. -->
     <http:default-headers>
       <http:default-header key="Authorization" value="Bearer ${secure::stripe.api.key}"/>
+      <http:default-header key="Stripe-Version" value="${config.stripe.apiVersion}"/>
     </http:default-headers>
   </http:request-config>
 

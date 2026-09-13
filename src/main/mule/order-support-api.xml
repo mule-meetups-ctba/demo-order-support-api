@@ -53,7 +53,14 @@ var orders = {
                status: "SHIPPED",   paymentIntentId: "pi_REPLACE_WITH_YOUR_TEST_PAYMENT_INTENT" },
   "TW-1003": { orderId: "TW-1003", customer: { name: "Carla Dias", email: "carla.dias@example.com" },
                items: [{ sku: "TW-HS-X1",  description: "Headset USB-C",        qty: 2, unitPrice: 59.50 }],
-               status: "PROCESSING", paymentIntentId: "pi_REPLACE_WITH_YOUR_TEST_PAYMENT_INTENT" }
+               status: "PROCESSING", paymentIntentId: "pi_REPLACE_WITH_YOUR_TEST_PAYMENT_INTENT" },
+  // Pedido de reserva para o caminho feliz do reembolso: o PaymentIntent do
+  // TW-1002 ja foi reembolsado, e o Stripe recusa um segundo com
+  // `charge_already_refunded`. Este aqui tem pagamento succeeded e intacto —
+  // e o valor (R$ 100,00) bate com os 10000 centavos do PaymentIntent.
+  "TW-1004": { orderId: "TW-1004", customer: { name: "Diego Nunes", email: "diego.nunes@example.com" },
+               items: [{ sku: "TW-MS-PRO", description: "Mouse sem fio Pro",    qty: 1, unitPrice: 100.00 }],
+               status: "SHIPPED",   paymentIntentId: "pi_REPLACE_WITH_YOUR_TEST_PAYMENT_INTENT" }
 }
 ---
 orders[vars.orderId]]]></ee:set-payload>
@@ -97,10 +104,21 @@ output application/json
           doc:description="Logs the PaymentIntent id being requested from Stripe (DEBUG)"
           message="#[output application/json --- {message: 'Stripe PaymentIntent request', tracePoint: 'BEFORE_REQUEST'} ++ ({ paymentIntentId: vars.order.paymentIntentId })]"/>
 
+        <!-- `expand[]=latest_charge` e OBRIGATORIO. Sem ele o PaymentIntent traz
+             `latest_charge` apenas como id (string), e nao da para ler `refunded`.
+             O campo `charges` que existia antes foi REMOVIDO da API do Stripe
+             (substituido por `latest_charge` na versao 2022-08-01) — ler
+             `charges.data[0].refunded` devolvia null, caia no `default false`, e
+             o flag `refunded` ficava PERMANENTEMENTE false. Isso cegava o
+             guardrail de reembolso do broker: `alreadyRefunded` era sempre "no",
+             a porta de bloqueio nunca fechava, e o Stripe recusava o reembolso
+             duplicado com um 400 que ninguem via. -->
         <http:request config-ref="stripe-request-config" method="GET"
           path="#['/payment_intents/' ++ vars.order.paymentIntentId]" target="stripePayment"
           doc:name="Get Stripe payment"
-          doc:description="Fetches the PaymentIntent from Stripe and stores it in the stripePayment variable"/>
+          doc:description="Fetches the PaymentIntent from Stripe with the latest charge expanded, so the refund state can be read">
+          <http:query-params><![CDATA[#[{ "expand[]": "latest_charge" }]]]></http:query-params>
+        </http:request>
 
         <logger level="INFO" category="com.techwave.orders.api"
           doc:name="After Stripe call - INFO"
@@ -130,9 +148,11 @@ output application/json
     status: vars.stripePayment.status,
     amount: (vars.stripePayment.amount default 0) / 100,
     currency: upper(vars.stripePayment.currency default "usd"),
-    refunded: ((vars.stripePayment.amount_received default 0) > 0)
-      and ((vars.stripePayment.status default "") == "succeeded")
-      and ((vars.stripePayment."charges".data[0].refunded default false) == true)
+    // `amount_refunded > 0` entra no OR de proposito: pega reembolso PARCIAL,
+    // que deixa `refunded` em false. Para um guardrail de "nao reembolse de
+    // novo", qualquer valor ja devolvido tem que contar.
+    refunded: ((vars.stripePayment.latest_charge.refunded default false) == true)
+      or ((vars.stripePayment.latest_charge.amount_refunded default 0) > 0)
   }
 }]]></ee:set-payload>
           </ee:message>
