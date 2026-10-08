@@ -80,7 +80,7 @@
 						<config.environment>dev</config.environment>
 					</systemPropertyVariables>
 					<argLines>
-						<argLine>-Dencryption.key=DemoMeetupKey016</argLine>
+						<argLine>-Dencryption.key=${encryption.key}</argLine>
 					</argLines>
 				</configuration>
 				<executions>

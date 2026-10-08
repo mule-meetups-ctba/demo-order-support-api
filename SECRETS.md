@@ -7,11 +7,15 @@ Este projeto usa o módulo **Mule Secure Configuration Properties**:
 | Onde | O que contém | Versionado? |
 |---|---|---|
 | `src/main/resources/config-dev.yaml` | hosts, paths, `client_id` (não é segredo) | **sim** |
-| `src/main/resources/secure-config-dev.yaml` | segredos **cifrados**, entre `![ ... ]` | **sim** |
+| `src/main/resources/secure-config-dev.yaml` | **template** com placeholders `CHANGE-ME` | **sim** |
 | a chave de criptografia | passada em runtime via `-Dencryption.key` | **nunca** |
 
 A regra que sustenta tudo: **o arquivo cifrado pode ir para o git; a chave não.**
 Sem a chave, os valores entre `![ ... ]` são inúteis.
+
+Neste repositorio publico o arquivo vai um passo alem: ele traz apenas
+`CHANGE-ME`, sem nenhum ciphertext. Quem reproduz a demo cifra os proprios
+segredos e substitui os placeholders — nao ha nada aqui para atacar offline.
 
 ## Segredos deste projeto
 

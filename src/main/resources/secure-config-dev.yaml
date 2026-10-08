@@ -1,6 +1,15 @@
-# Segredos CIFRADOS (Secure Configuration Properties module) — gerado por encrypt-secrets.sh.
-# NUNCA commitar valores em texto puro. Apenas o resultado cifrado entre ![ ... ].
-# Cifrado com AES/CBC; use a MESMA chave em -Dencryption.key no deploy.
+# Segredos do projeto — este arquivo e um TEMPLATE, com placeholders.
+#
+# Para rodar a demo, cifre os seus proprios valores com scripts/encrypt-secrets.sh
+# e substitua cada CHANGE-ME pelo resultado, entre ![ ... ]:
+#
+#   stripe:
+#     api:
+#       key: "![rRfT8wQ1kL9m...==]"
+#
+# O modulo Secure Configuration Properties so decifra o que estiver entre ![ ... ];
+# qualquer outro valor passa como texto puro. A chave entra em runtime via
+# -Dencryption.key e NUNCA e versionada.
 stripe:
   api:
     key: "CHANGE-ME"
