@@ -6,8 +6,14 @@ enriquecido com o **status real do pagamento no Stripe** (test mode).
 - **Runtime:** Mule 4.12 · Java 17 · CloudHub 2.0
 - **Governada por:** Client ID Enforcement + Rate Limiting no ingress Omni Gateway
 
-> Parte de uma demo com 4 repositórios. Arquitetura, walkthrough completo, políticas de gateway
-> e roteiro de apresentação: **`meetup-omni-material`**.
+> Parte de uma demo com quatro repositórios, que só faz sentido completa:
+>
+> - [`demo-support-mcp-server`](https://github.com/mule-meetups-ctba/demo-support-mcp-server) — MCP server com as quatro tools de suporte
+> - [`demo-support-agent`](https://github.com/mule-meetups-ctba/demo-support-agent) — agente A2A com tool-calling
+> - [`demo-omni-agent-network`](https://github.com/mule-meetups-ctba/demo-omni-agent-network) — Agent Network 2.0 + broker em AgentScript
+>
+> A arquitetura, o passo a passo de deploy e as políticas de gateway estão
+> descritos no artigo que acompanha a demo.
 
 Esta é a peça que prova um ponto da demo: **agentes não substituem APIs, eles consomem APIs.**
 Toda a governança de API Manager que você já conhece continua valendo.
